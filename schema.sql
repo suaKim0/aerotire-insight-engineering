@@ -1,7 +1,4 @@
-CREATE DATABASE IF NOT EXISTS aetire_db;
-USE aetire_db;
-
-CREATE TABLE Vehicle_Aero_Specs (
+CREATE TABLE IF NOT EXISTS Vehicle_Aero_Specs (
   car_id BIGINT NOT NULL AUTO_INCREMENT,
   model_name VARCHAR(255) NOT NULL,
   wing_area DOUBLE NOT NULL,
@@ -9,7 +6,7 @@ CREATE TABLE Vehicle_Aero_Specs (
   PRIMARY KEY (car_id)
 );
 
-CREATE TABLE Track_Environments (
+CREATE TABLE IF NOT EXISTS Track_Environments (
   env_id BIGINT NOT NULL AUTO_INCREMENT,
   track_name VARCHAR(255) NOT NULL,
   air_density DOUBLE NOT NULL,
@@ -17,7 +14,7 @@ CREATE TABLE Track_Environments (
   PRIMARY KEY (env_id)
 );
 
-CREATE TABLE Mechanical_Run_Logs (
+CREATE TABLE IF NOT EXISTS Mechanical_Run_Logs (
   log_id BIGINT NOT NULL AUTO_INCREMENT,
   car_id BIGINT NOT NULL,
   env_id BIGINT NOT NULL,
