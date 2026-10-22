@@ -5,11 +5,11 @@ const template = require('./template');
 const sanitizeHtml = require('sanitize-html');
 const mysql      = require('mysql2');
 const db = mysql.createConnection({
-  host     : 'localhost',
-  user     : 'root',
-  password : 'rlatndk823**',
-  database : 'aetire_db',
-  port : 3401
+    host     : 'localhost',
+    user     : 'root',
+    password : 'rlatndk823**',
+    database : 'aetire_db',
+    port : 3401
 });
 db.connect();
 
@@ -33,72 +33,117 @@ app.get('/', (req, res) => {
 
 app.get('/create', (req, res) => {
     db.query('SELECT car_id, model_name FROM Vehicle_Aero_Specs', (err, cars) => {
-        if (err) throw err; //차량 조회
+        if (err) throw err;
 
        db.query('SELECT env_id, track_name FROM Track_Environments', (err, tracks) => {
             if (err) throw err;
             menu(null, (menuHtml) => {
-                res.send(template.html(menuHtml, template.create(cars, tracks))); //트랙 조회해서 template으로
+                res.send(template.html(menuHtml, template.create(cars, tracks)));
             });
        });
     });    
-}); //AI&
+});
 
+// 생성형 AI 활용
+// 활용 내용 공기역학 다운포스 및 타이어 마모율 자동 연산 로직 작성
+// 프롬프트 속도와 날개 각도를 입력받아 다운포스와 타이어 마모율을 계산하는 JS 식 작성해줘
+// 수정 및 검증 AI가 제안한 식에서 rad 단위 변환 및 toFixed 소수점 처리 적용 후 콘솔 출력으로 검증함
 app.post('/create', (req, res) => {
-    const {car_id, env_id, wing_angle, velocity, tire_compound} = req.body;
+    const { car_id, env_id, wing_angle, velocity, tire_compound } = req.body;
+    
+    // 추가 학습 및 변경 수업 시간 기본 CRUD 외에 공학 연산 공식을 추가하여 자동 계산 로직 적용
     const rad = (wing_angle * Math.PI) / 180;
-    const calculated_downforce = Number((0.5 * 1.225 * Math.pow(velocity, 2) * 0.45 * Math.sin(rad)).toFixed(2)); //AI, Downforce 연산
-    const compoundFactors = {'Soft':0.08, 'Medium':0.05, 'Hard':0.03};
-    const factor = compoundFactors[tire_compound] || 0.05;
-    const calculated_wear_rate = Number((velocity * factor).toFixed(2)); //AI, WearRate 연산
+    const calculated_downforce = Number((0.5 * 1.225 * Math.pow(velocity, 2) * 0.45 * Math.sin(rad)).toFixed(2));
+    const compoundFactors = { 'Soft': 0.08, 'Medium': 0.05, 'Hard': 0.03 };
+    const calculated_wear_rate = Number((velocity * (compoundFactors[tire_compound] || 0.05)).toFixed(2));
+
     db.query(
-        `insert into Mechnical_Run_Logs (car_id, env_id, wing_angle, velocity, tire_compound, calculated_downforce, calculated_wear_rate) values (${car_id}, ${env_id}, ${wing_angle}, ${velocity}, '${tire_compound}', ${downforce}, ${wear_rate})`,
+        `INSERT INTO Mechanical_Run_Logs (car_id, env_id, wing_angle, velocity, tire_compound, calculated_downforce, calculated_wear_rate) 
+         VALUES (${car_id}, ${env_id}, ${wing_angle}, ${velocity}, '${tire_compound}', ${calculated_downforce}, ${calculated_wear_rate})`,
         (err, results) => {
             if (err) throw err;
-            res.redirect(`/${insertId}`); //Mechinal_Run_Logs에서 인저트 후 이동
-        });
-    });
+            res.redirect(`/${results.insertId}`);
+        }
+    );
+});
 
+// 추가 학습 및 변경 3개 이상 테이블 JOIN을 위해 3개 테이블을 연결하여 상세 정보 조회
 app.get('/:id', (req, res) => {
     const id = Number(req.params.id);
     if (!Number.isInteger(id)) { return res.status(404).send('404 Not Found'); } 
-    db.query(`SELECT t.*, o.building, o.room from teacher t 
-        left join office o on t.office_no=o.id WHERE t.id = ?`, [id], function (err, results) {
+    const sql = `
+        SELECT l.*, c.model_name, e.track_name 
+        FROM Mechanical_Run_Logs l
+        JOIN Vehicle_Aero_Specs c ON l.car_id = c.car_id
+        JOIN Track_Environments e ON l.env_id = e.env_id
+        WHERE l.log_id = ?
+    `;
+
+    db.query(sql, [id], (err, results) => {
         if (err) throw err;
         if (results.length === 0) { return res.status(404).send('404 Not Found'); }
-        const teacher = results[0];
-        menu(id, function(menuHtml){
-            res.send(
-                template.html(menuHtml, template.read(teacher))
-            );
-        })        
-    });    
+
+        menu(id, (menuHtml) => {
+            res.send(template.html(menuHtml, template.read(results[0])));
+        });
+    });
+});
+
+// 생성형 AI 활용
+// 활용 내용 차량별 평균 다운포스 및 총 주행 횟수 집계 GROUP BY 쿼리 작성
+// 프롬프트 MySQL에서 3개 테이블 중 차량별 평균 속도와 주행 횟수를 구하는 GROUP BY SQL 작성해줘
+// 수정 및 검증 LEFT JOIN을 사용하여 데이터가 없는 차량도 0회로 나오도록 수정 후 쿼리 실행 검증 완료함
+app.get('/stats', (req, res) => {
+    const sql = `
+        SELECT c.model_name, COUNT(l.log_id) AS total_runs, AVG(l.velocity) AS avg_velocity, AVG(l.calculated_downforce) AS avg_downforce
+        FROM Vehicle_Aero_Specs c
+        LEFT JOIN Mechanical_Run_Logs l ON c.car_id = l.car_id
+        GROUP BY c.car_id, c.model_name
+    `;
+    db.query(sql, (err, statsData) => {
+        if (err) throw err;
+        menu(null, (menuHtml) => {
+            res.send(template.html(menuHtml, template.stats(statsData)));
+        });
+    });
 });
 
 app.get('/update/:id', (req, res) => {
     const id = Number(req.params.id);
-    db.query('select * from teacher where id=?',[id], function (err, results) {
+    db.query('SELECT * FROM Mechanical_Run_Logs WHERE log_id = ?', [id], function (err, results) {
         if (err) throw err;
         if (results.length === 0) { return res.status(404).send('404 Not Found'); }
-        const teacher = results[0];
-        db.query('SELECT * FROM office', function(err, offices){
+        const log = results[0];
+        db.query('SELECT car_id, model_name FROM Vehicle_Aero_Specs', function(err, cars){
             if (err) throw err;
-            menu(null, function(menuHtml){
-                res.send(template.html(menuHtml,template.update(teacher, offices)))                
-            });    
+            db.query('SELECT env_id, track_name FROM Track_Environments', function(err, tracks){
+                if (err) throw err;
+                menu(null, function(menuHtml){
+                    res.send(template.html(menuHtml, template.update(log, cars, tracks)))                
+                });    
+            });
         });        
     });
 });
 
+// 생성형 AI 활용
+// 활용 내용 주행 로그 수정 쿼리 및 공학 연산 반영 로직 작성
+// 프롬프트 기존 teacher 수정 코드를 Mechanical_Run_Logs 업데이트 코드로 변경하는 방법
+// 수정 및 검증 req.body로 전달받은 값들을 UPDATE 쿼리에 매핑하여 정상 수정 확인
 app.post('/update', (req, res) => {
-    const id = Number(req.body.id);
-    const name = sanitizeHtml(req.body.name);
-    const subject = sanitizeHtml(req.body.subject);
-    const className = req.body.class === '' ? null : sanitizeHtml(req.body.class);
-    const officeNo = req.body.office_no === '' ? null : Number(req.body.office_no);
-    db.query(
-        'update teacher set name=?, subject=?, class=?, office_no=? where id =?',
-        [name, subject, className, officeNo, id], function (err, results) {
+    const { id, car_id, env_id, wing_angle, velocity, tire_compound } = req.body;
+    const rad = (wing_angle * Math.PI) / 180;
+    const calculated_downforce = Number((0.5 * 1.225 * Math.pow(velocity, 2) * 0.45 * Math.sin(rad)).toFixed(2));
+    const compoundFactors = { 'Soft': 0.08, 'Medium': 0.05, 'Hard': 0.03 };
+    const calculated_wear_rate = Number((velocity * (compoundFactors[tire_compound] || 0.05)).toFixed(2));
+
+    const sql = `
+        UPDATE Mechanical_Run_Logs 
+        SET car_id=?, env_id=?, wing_angle=?, velocity=?, tire_compound=?, calculated_downforce=?, calculated_wear_rate=? 
+        WHERE log_id=?
+    `;
+    
+    db.query(sql, [car_id, env_id, wing_angle, velocity, tire_compound, calculated_downforce, calculated_wear_rate, id], function (err, results) {
         if (err) throw err;
         res.redirect(`/${id}`);
     });
@@ -106,72 +151,30 @@ app.post('/update', (req, res) => {
 
 app.get('/delete/:id', (req, res) => {
     const id = Number(req.params.id);
-    db.query('select * from teacher where id=?',[id], function (err, results) {
+    db.query('SELECT * FROM Mechanical_Run_Logs WHERE log_id = ?',[id], function (err, results) {
         if (err) throw err;
         if (results.length === 0) { return res.status(404).send('404 Not Found'); }
-        const teacher = results[0];        
+        const log = results[0];        
         menu(id, function(menuHtml){
-            res.send(template.html(menuHtml, template.delete(teacher)))
+            res.send(template.html(menuHtml, template.read(log)))
         });
     });
 });
 
+// 생성형 AI 활용
+// 활용 내용 Mechanical_Run_Logs 테이블의 log_id 기준 삭제 쿼리 및 파라미터 바인딩 작성
+// 프롬프트 express와 mysql2 환경에서 post 요청으로 받은 id를 이용해 안전하게 delete 쿼리 날리는 법
+// 수정 및 검증 물음표 파라미터 바인딩 방식을 적용하여 SQL 인젝션을 방지하도록 수정 후 삭제 테스트 완료
 app.post('/delete', (req, res) => {
     const id = Number(req.body.id);
     db.query(
-        'delete from teacher where id =?',
-        [id], function (err, results) {
-        if (err) throw err;
-        res.redirect(`/`);
-    });
-});
-
-
-app.get('/office', (req,res) => {    
-    db.query(`SELECT o.id, o.building, o.room, count(t.id) AS teacher_count
-        from office o left join teacher t on o.id=t.office_no
-        group by o.id, o.building, o.room`, function(err, offices){
-        if (err) throw err;        
-        menu(null, function(menuHtml){
-            let list = `<h2>교무실 목록</h2><ul>`;
-            for (let i=0; i<offices.length; i++){
-                list += `<li><a href='/office/${offices[i].id}'>
-                    ${offices[i].building} ${offices[i].room} (${offices[i].teacher_count}명)
-                </a>                
-                </li>                
-                `;
-            }
-            list += '</ul>';
-            res.send(template.html(menuHtml, list));
-        });
-    });
-});
-
-app.get('/office/:id', (req,res) => {
-    const id = Number(req.params.id);    
-    db.query(`
-        select t.id, t.name, t.subject, o.building, o.room from teacher t
-        right join office o on t.office_no = o.id where o.id = ?
-        `, [id], function(err, results){
-        if (err) throw err;
-        
-        if (results.length === 0){
-            return res.status(404).send('404 Not Found');
+        'DELETE FROM Mechanical_Run_Logs WHERE log_id = ?',
+        [id],
+        (err, results) => {
+            if (err) throw err;
+            res.redirect('/');
         }
-        menu(null, function(menuHtml){
-            let list = `<h2>${results[0].building} ${results[0].room}</h2>
-            <ul>`;
-            if (results[0].name === null){
-                list += '<li>소속 교사 없음</li>';
-            }else{
-            for (let i=0; i<results.length; i++){
-                list += `<li><a href='/${results[i].id}'>${results[i].name}</a> - ${results[i].subject}</li>
-                `;
-            }}
-            list += '</ul>';
-            res.send(template.html(menuHtml, list));
-        });
-    });
+    );
 });
 
 app.listen(port, () => {
