@@ -180,3 +180,35 @@ app.post('/delete', (req, res) => {
 app.listen(port, () => {
     console.log(`server running on PORT ${port}`);
 });
+
+
+// 테이블 자동 실행 코
+
+const mysql = require('mysql2');
+const fs = require('fs'); // ⭐ 파일 읽기 모듈 추가
+
+// 1단계: multipleStatements 옵션을 켠 상태로 DB 연결 설정
+const db = mysql.createConnection({
+  host: process.env.DB_HOST,
+  user: process.env.DB_USER,
+  password: process.env.DB_PASSWORD,
+  database: process.env.DB_NAME,
+  port: process.env.DB_PORT || 3306,
+  multipleStatements: true // 여러 쿼리를 한 번에 실행할 수 있게 허용
+});
+
+// 2단계: 서버가 DB에 붙을 때 schema.sql을 읽어서 테이블 자동 생성
+db.connect((err) => {
+  if (err) throw err;
+  console.log('Connected to MySQL database!');
+
+  // schema.sql 파일을 읽어와서 자동으로 실행
+  const schemaSql = fs.readFileSync('./schema.sql', 'utf8');
+  db.query(schemaSql, (err, results) => {
+    if (err) {
+      console.error('Error creating tables:', err);
+    } else {
+      console.log('Tables initialized successfully!');
+    }
+  });
+});
