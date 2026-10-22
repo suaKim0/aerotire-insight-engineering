@@ -5,11 +5,11 @@ const template = require('./template');
 const sanitizeHtml = require('sanitize-html');
 const mysql      = require('mysql2');
 const db = mysql.createConnection({
-    host     : 'localhost',
-    user     : 'root',
-    password : 'rlatndk823**',
-    database : 'aetire_db',
-    port : 3401
+    host     : 'mysql-aerotire-sua-kim-project.i.aivencloud.com',
+    user     : 'avnadmin',
+    password : 'AVNS_dHkcqudH01Jt_IPKcJo',
+    database : 'defaultdb',
+    port : 22274
 });
 db.connect();
 
