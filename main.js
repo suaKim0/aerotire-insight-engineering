@@ -12,6 +12,9 @@ app.use(express.urlencoded({ extended: true }));
 // 1. Aiven MySQL 연결
 // ========================================
 
+// [생성형 AI 활용 코드]
+// Render 환경 변수로 Aiven MySQL 연결 정보를 관리 
+// 비밀번호를 소스 코드에 직접 저장하지 않음
 const db = mysql.createConnection({
     host: process.env.DB_HOST || 'mysql-aerotire-sua-kim-project.i.aivencloud.com',
     user: process.env.DB_USER || 'avnadmin',
@@ -44,6 +47,8 @@ db.connect((err) => {
 // 2. 공통 함수
 // ========================================
 
+// [생성형 AI 활용 코드]
+// 입력값 정리, DB 조회 결과 처리, 공통 화면 출력 및 오류 처리를 위해 추가
 function clean(value) {
     return sanitizeHtml(String(value ?? '').trim());
 }
@@ -144,6 +149,8 @@ app.get('/', async (req, res) => {
 // 4. 차량 공력 사양 등록 CREATE
 // ========================================
 
+// [생성형 AI 활용 코드]
+// 차량 공력 사양과 트랙 환경을 웹 폼으로 등록하는 CRUD 기능 
 app.get('/cars/create', async (req, res) => {
     const body = `
         <h2>차량 공력 사양 등록</h2>
@@ -233,6 +240,10 @@ app.get('/cars/:id', async (req, res) => {
 // 5. 트랙 환경 등록 CREATE
 // ========================================
 
+// 입력받은 공기 밀도, 속도, 스포일러 면적 및 영각을 이용해
+// 시연용 다운포스를 계산 [AI 활용 코드]
+// 타이어 컴파운드별 계수를 적용해 시연용 마모율도 추정
+// 실제 차량 실험으로 검증된 예측식은 X
 app.get('/tracks/create', async (req, res) => {
     const body = `
         <h2>트랙 환경 등록</h2>
@@ -396,9 +407,9 @@ app.post('/create', async (req, res) => {
         const track = tracks[0];
 
         /*
-         * 시연용 단순화 모델입니다.
+         * 시연용 단순화 모델 
          * 다운포스 = 0.5 × 공기밀도 × 속도² × 스포일러 면적 × 양력계수
-         * 실제 차량의 공력계수와 타이어 모델을 측정한 값은 아닙니다.
+         * 실제 차량의 공력계수와 타이어 모델을 측정한 값은 X
          */
         const angleRadians = wingAngle * Math.PI / 180;
         const liftCoefficient = 1.2 * Math.sin(angleRadians);
@@ -410,8 +421,8 @@ app.post('/create', async (req, res) => {
             liftCoefficient;
 
         /*
-         * 타이어별 기준값을 이용한 시연용 마모율 추정식입니다.
-         * 실제 실험값이나 검증된 타이어 수명 예측식은 아닙니다.
+         * 타이어별 기준값을 이용한 시연용 마모율 추정식 
+         * 실제 실험값이나 검증된 타이어 수명 예측식은 X
          */
         const compoundFactor = {
             Soft: 1.5,
@@ -506,6 +517,9 @@ app.get('/logs', async (req, res) => {
 // 8. 주행 로그 상세 조회: 3개 테이블 JOIN
 // ========================================
 
+// [생성형 AI 활용 코드]
+// Mechanical_Run_Logs, Vehicle_Aero_Specs, Track_Environments를 JOIN하여
+// 주행 기록과 차량·트랙 정보를 하나의 결과로 조회
 app.get('/logs/:id', async (req, res) => {
     try {
         const id = Number(req.params.id);
@@ -751,6 +765,9 @@ app.post('/delete', async (req, res) => {
 // 11. 통계: AVG, COUNT, GROUP BY
 // ========================================
 
+// [생성형 AI 활용 코드]
+// COUNT, AVG, MAX 및 GROUP BY를 이용해
+// 타이어 종류별 주행 횟수와 평균 마모율·다운포스를 집계
 app.get('/stats', async (req, res) => {
     try {
         const tireStats = await query(`
